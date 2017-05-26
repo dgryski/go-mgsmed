@@ -13,8 +13,9 @@ import (
 )
 
 type Stream struct {
-	t    map[string]int
-	keys []string
+	t      map[string]int
+	keys   []string
+	offset int
 }
 
 func New(k int) *Stream {
@@ -38,6 +39,8 @@ func (s *Stream) Update(key string, d int) {
 
 	c := s.decrementCounters()
 
+	s.offset += c
+
 	if d >= c {
 		s.t[key] = d - c
 	}
@@ -50,24 +53,17 @@ func (s *Stream) decrementCounters() int {
 }
 
 func (s *Stream) clean(median int) {
-	s.keys = s.keys[:cap(s.keys)]
-	keep, rm := 0, len(s.keys)
+	s.keys = s.keys[:0]
 
 	for key, count := range s.t {
-		if count <= median {
-			rm--
-			s.keys[rm] = key
+		count -= median
+		if count <= 0 {
+			delete(s.t, key)
 		} else {
-			s.keys[keep] = key
-			keep++
+			s.t[key] = count
+			s.keys = append(s.keys, key)
 		}
 	}
-
-	for _, key := range s.keys[rm:] {
-		delete(s.t, key)
-	}
-
-	s.keys = s.keys[:keep]
 }
 
 func (s *Stream) computeMedian() int {
@@ -97,7 +93,10 @@ func (s *Stream) computeMedian() int {
 }
 
 func (s *Stream) Estimate(key string) int {
-	return s.t[key]
+	if count, ok := s.t[key]; ok {
+		return count + s.offset
+	}
+	return 0
 }
 
 type Element struct {
@@ -118,7 +117,7 @@ func (s *Stream) Keys() []Element {
 	elements := make([]Element, 0, len(s.t))
 
 	for k, v := range s.t {
-		elements = append(elements, Element{Key: k, Count: v})
+		elements = append(elements, Element{Key: k, Count: v + s.offset})
 	}
 
 	sort.Sort(elementsByCountDescending(elements))
