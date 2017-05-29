@@ -10,6 +10,8 @@ package mgsmed
 import (
 	"math/rand"
 	"sort"
+
+	"github.com/dgryski/go-qselect"
 )
 
 type Stream struct {
@@ -79,17 +81,9 @@ func (s *Stream) computeMedian() int {
 		counts[i] = s.t[s.keys[rand.Intn(len(s.keys))]]
 	}
 
-	sort.Ints(counts)
-
-	if l%2 == 0 {
-		a := counts[l/2]
-		b := counts[l/2-1]
-
-		// integer addition without overflow
-		return (a & b) + ((a ^ b) >> 1)
-	}
-
-	return counts[len(counts)/2]
+	median := len(counts) / 2
+	qselect.Select(sort.IntSlice(counts), median)
+	return counts[median]
 }
 
 func (s *Stream) Estimate(key string) int {
